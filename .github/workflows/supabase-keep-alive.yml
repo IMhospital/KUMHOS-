@@ -1,0 +1,35 @@
+name: Supabase Keep-Alive
+
+# รันอัตโนมัติทุกวัน เวลา 03:00 UTC (ประมาณ 10:00 น. เวลาไทย)
+# และสามารถกดรันเองได้จากแท็บ Actions บน GitHub
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase table (real DB request)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # เรียก PostgREST เพื่ออ่านข้อมูล 1 แถวจากตารางที่ระบุ
+          # เปลี่ยน "keep_alive" ให้เป็นชื่อตารางจริงในโปรเจกต์ของคุณ
+          # (ต้องเป็น request ที่แตะฐานข้อมูลจริง ไม่ใช่แค่ ping หน้าเว็บ)
+          response=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/keep_alive?select=*&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+
+          echo "HTTP status: $response"
+          cat /tmp/response.json
+
+          if [ "$response" -ge 400 ]; then
+            echo "::error::Supabase ping failed with status $response"
+            exit 1
+          fi
+
+          echo "✅ Supabase project pinged successfully — inactivity timer reset."
